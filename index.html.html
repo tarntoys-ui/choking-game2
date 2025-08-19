@@ -1,0 +1,247 @@
+
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>เกมช่วยเพื่อนสำลักอาหาร (ฉบับเบื้องต้น)</title>
+  <style>
+    :root {
+      --bg: #f1f7ff;
+      --card: #fff;
+      --primary: #0b63c9;
+      --accent: #10b981;
+      --danger: #dc2626;
+      --muted: #6b7280;
+    }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Thai", "Noto Sans", "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: linear-gradient(#eef6ff, #e6f0ff); color: #0f172a; }
+    .container { max-width: 920px; margin: 24px auto 80px; padding: 0 16px; }
+    .header { display:flex; align-items:center; justify-content:space-between; gap: 8px; }
+    .title { font-weight: 800; color: #0b3e91; font-size: clamp(20px, 3vw, 28px); }
+    .stats { display:flex; gap: 12px; align-items:center; color:#065f46; font-weight:700; }
+    .card { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 8px 26px rgba(0,0,0,.06); border: 1px solid #e5e7eb; }
+    .btn { background: #0b63c9; color:white; border:0; border-radius: 12px; padding: 10px 16px; font-weight:700; cursor:pointer; }
+    .btn.secondary { background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; }
+    .btn.ghost { background:transparent; color:#1f2937; border:1px solid #e5e7eb; }
+    .btn.danger { background:var(--danger); }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+    .choice { text-align:left; border-radius: 12px; padding: 14px; border: 1px solid #d1fae5; background:#fff; cursor:pointer; }
+    .choice.wrong { border-color: #ffe4e6; }
+    .hint { margin-top: 12px; background:#eff6ff; color:#1e3a8a; padding: 12px; border-radius: 10px; border:1px solid #dbeafe; }
+    .row { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
+    .progress { width: 100%; height: 12px; background:#e5e7eb; border-radius: 999px; overflow:hidden; }
+    .bar { height:100%; background:#10b981; width:0%; transition: width .2s; }
+    .keyrow { display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; margin-top:14px; }
+    .key { padding:10px; text-align:center; border:1px solid #e5e7eb; border-radius:10px; background:white; font-weight:700; }
+    .key.done { background:#dcfce7; border-color:#bbf7d0; }
+    .muted { color: var(--muted); font-size: 14px; }
+    footer { color:#6b7280; font-size:12px; margin-top:16px; }
+    .msg { margin-top:10px; font-weight:700; }
+    .ok { color:#047857; }
+    .bad { color:#b91c1c; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">เกมช่วยเพื่อนสำลักอาหาร (Choking Safety)</div>
+      <div class="stats">
+        <div>⏱️ <span id="timer">พร้อม</span></div>
+        <div>✅ คะแนน: <span id="score">0</span></div>
+      </div>
+    </div>
+
+    <div id="screen" class="card"></div>
+
+    <footer>
+      สื่อการสอนนี้เพื่อการเรียนรู้เบื้องต้นสำหรับเด็กประถม ครูควรกำกับดูแลขณะใช้งานเสมอ
+    </footer>
+  </div>
+
+  <script>
+    const screens = {
+      INTRO: "intro",
+      CHOICES: "choices",
+      QTE: "qte",
+      WIN: "win",
+      FAIL: "fail"
+    };
+    const seq = ["LEFT","RIGHT","LEFT","RIGHT","LEFT"];
+    let state = {
+      screen: screens.INTRO,
+      score: 0,
+      calledAdult: false,
+      qteIndex: 0,
+      timeLeft: 15,
+      timer: null,
+      message: ""
+    };
+
+    const el = {
+      screen: document.getElementById("screen"),
+      timer: document.getElementById("timer"),
+      score: document.getElementById("score"),
+    };
+
+    function setScreen(name) {
+      state.screen = name;
+      render();
+      if (name === screens.QTE) startTimer();
+      else stopTimer();
+    }
+
+    function startTimer() {
+      state.timeLeft = 15;
+      el.timer.textContent = state.timeLeft + "s";
+      stopTimer();
+      state.timer = setInterval(() => {
+        state.timeLeft--;
+        el.timer.textContent = state.timeLeft + "s";
+        if (state.timeLeft <= 0) {
+          stopTimer();
+          setScreen(screens.FAIL);
+          state.message = "หมดเวลา! ลองใหม่อีกครั้งนะ";
+          render();
+        }
+      }, 1000);
+    }
+    function stopTimer() {
+      if (state.timer) clearInterval(state.timer);
+      state.timer = null;
+      if (state.screen !== screens.QTE) el.timer.textContent = "พร้อม";
+    }
+
+    function render() {
+      el.score.textContent = state.score;
+      if (state.screen === screens.INTRO) {
+        el.screen.innerHTML = `
+          <p style="font-size:18px; line-height:1.6">
+            ระหว่างพักกลางวัน เพื่อนของคุณกำลังกินข้าวแล้วจู่ ๆ ก็ <b style="color:#b91c1c">ไอแรง ๆ น้ำตาคลอ</b> ดูเหมือนจะสำลัก!
+          </p>
+          <ul class="muted">
+            <li>เป้าหมาย: เลือกการช่วยเหลือที่ <b>ถูกต้องและปลอดภัย</b></li>
+            <li>ถ้าไอได้ ให้ <b>ไอแรง ๆ</b></li>
+            <li>เรียก <b>ครู/ผู้ใหญ่</b> มาช่วย</li>
+            <li>ถ้ายังติดคออยู่ → เริ่มช่วยดันท้อง (จำลองในเกม)</li>
+          </ul>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" onclick="setScreen(screens.CHOICES)">เริ่มเกม</button>
+            <button class="btn secondary" onclick="resetScore()">รีเซ็ตคะแนน</button>
+          </div>
+        `;
+      }
+
+      if (state.screen === screens.CHOICES) {
+        el.screen.innerHTML = `
+          <h2 style="color:#0b3e91; margin:0 0 8px 0">คุณจะทำอย่างไรดี?</h2>
+          <div class="grid">
+            <div class="choice" onclick="choiceCorrect('ถูกต้อง! ถ้าไอได้ ให้ไอแรง ๆ ก่อน', 20)">บอกให้เพื่อน "ไอแรง ๆ"</div>
+            <div class="choice wrong" onclick="choiceWrong('ไม่ปลอดภัย เงยหน้าหรือดื่มน้ำอาจทำให้แย่ลง')">เงยหน้าสูง ๆ และดื่มน้ำเยอะ ๆ</div>
+            <div class="choice wrong" onclick="choiceWrong('ยังไม่ถูก ขั้นตอนต้องมีจังหวะและเทคนิคที่ถูกต้อง')">ตบหลังแรง ๆ แบบสุ่มหลายครั้ง</div>
+            <div class="choice" onclick="callAdult()">เรียกครู/ผู้ใหญ่</div>
+          </div>
+          <div class="hint">
+            เคล็ดลับ: ถ้ายังสำลักอยู่และพูดไม่ได้ ให้เริ่มช่วยดันท้องอย่างปลอดภัย (ในเกมจะจำลองด้วยการกดปุ่มลูกศรซ้าย-ขวาตามจังหวะ)
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" onclick="beginQTE()">ไปช่วยดันท้อง (เริ่มภารกิจ)</button>
+            <button class="btn ghost" onclick="resetGame()">เริ่มใหม่</button>
+          </div>
+          <div class="msg ${state.message ? (state.messageOK ? 'ok':'bad') : ''}">${state.message || ""}</div>
+        `;
+      }
+
+      if (state.screen === screens.QTE) {
+        const items = seq.map((d,i)=>`<div class="key ${i < state.qteIndex ? 'done':''}">${d}</div>`).join("");
+        el.screen.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <h2 style="color:#0b3e91; margin:0">ภารกิจดันท้อง (กด ซ้าย-ขวา ตามลำดับ)</h2>
+            <div class="muted">เหลือเวลา: <b>${state.timeLeft}s</b></div>
+          </div>
+          <div class="progress" style="margin-top:10px"><div class="bar" id="bar" style="width:${(state.qteIndex/seq.length)*100}%"></div></div>
+          <p class="muted">ลำดับที่ต้องกด: ${seq.join(" → ")} | ใช้คีย์บอร์ด: Arrow Left / Arrow Right</p>
+          <div class="keyrow">${items}</div>
+          <p class="muted" style="margin-top:8px">หมายเหตุเพื่อความปลอดภัย: เรียกผู้ใหญ่ทุกครั้ง หากผู้ป่วยไม่หายใจหรือหมดสติ ให้โทรฉุกเฉิน</p>
+        `;
+      }
+
+      if (state.screen === screens.WIN) {
+        el.screen.innerHTML = `
+          <h2 style="color:#047857; margin:0 0 8px 0">🎉 ช่วยได้สำเร็จ!</h2>
+          <p>เพื่อนของคุณหายใจได้แล้ว คุณได้รับคะแนนสำหรับการเลือกการกระทำที่ปลอดภัย ${state.calledAdult ? "และเรียกผู้ใหญ่ได้ถูกต้อง" : ""}.</p>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" onclick="resetGame()">เล่นอีกครั้ง</button>
+            <button class="btn secondary" onclick="setScreen(screens.CHOICES)">กลับไปเลือกขั้นตอน</button>
+          </div>
+        `;
+      }
+
+      if (state.screen === screens.FAIL) {
+        el.screen.innerHTML = `
+          <h2 style="color:#b91c1c; margin:0 0 8px 0">ยังช่วยไม่สำเร็จ</h2>
+          <p>อย่ากังวล ลองใหม่อีกครั้งได้เสมอ จำไว้ว่าต้อง <b>บอกให้ไอ</b> และ <b>เรียกผู้ใหญ่</b> ก่อนเริ่มช่วยดันท้อง</p>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" onclick="beginQTE()">ลองภารกิจอีกครั้ง</button>
+            <button class="btn secondary" onclick="resetGame()">เริ่มใหม่</button>
+          </div>
+          <div class="msg bad">${state.message || ""}</div>
+        `;
+      }
+    }
+
+    function choiceCorrect(msg, addScore) {
+      state.score += addScore || 10;
+      state.message = msg;
+      state.messageOK = true;
+      render();
+    }
+    function choiceWrong(msg) {
+      state.score = Math.max(0, state.score - 5);
+      state.message = msg;
+      state.messageOK = false;
+      render();
+    }
+    function callAdult() {
+      if (!state.calledAdult) state.score += 10;
+      state.calledAdult = true;
+      state.message = "ดีมาก! ให้ผู้ใหญ่มาช่วยตรวจดูความปลอดภัย";
+      state.messageOK = true;
+      render();
+    }
+    function beginQTE() {
+      state.qteIndex = 0;
+      setScreen(screens.QTE);
+    }
+    function resetScore(){ state.score = 0; render(); }
+    function resetGame(){
+      stopTimer();
+      state = { screen: screens.INTRO, score: 0, calledAdult:false, qteIndex:0, timeLeft:15, timer:null, message:\"\" };
+      render();
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (state.screen !== screens.QTE) return;
+      const want = seq[state.qteIndex];
+      const key = e.key;
+      const ok = (want === "LEFT" && key === "ArrowLeft") || (want === "RIGHT" && key === "ArrowRight");
+      if (ok) {
+        state.qteIndex++;
+        const bar = document.getElementById("bar");
+        if (bar) bar.style.width = (state.qteIndex/seq.length)*100 + "%";
+        if (state.qteIndex >= seq.length) {
+          state.score += 100 + (state.calledAdult ? 20 : 0);
+          setScreen(screens.WIN);
+        } else {
+          render();
+        }
+      } else {
+        state.score = Math.max(0, state.score - 5);
+        render();
+      }
+    });
+
+    // initial
+    render();
+  </script>
+</body>
+</html>
